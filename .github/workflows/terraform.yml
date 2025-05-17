@@ -58,6 +58,7 @@ jobs:
   validate:
     name: Validate Terraform
     runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || github.event.inputs.action != 'destroy'
     strategy:
       matrix:
         environment: [dev, staging, prod]
@@ -495,7 +496,6 @@ jobs:
 
   destroy:
     name: Destroy Infrastructure
-    needs: validate
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
     runs-on: ubuntu-latest
     environment: ${{ github.event.inputs.environment }}
