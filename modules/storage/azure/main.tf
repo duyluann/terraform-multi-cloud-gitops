@@ -17,21 +17,22 @@ resource "azurerm_storage_account" "storage" {
     }
   }
 
-  # Enable queue service logging
-  queue_properties {
-    logging {
-      delete                = true
-      read                  = true
-      write                 = true
-      version               = "1.0"
-      retention_policy_days = 7
-    }
-  }
-
   tags = merge(var.tags, {
     Environment = var.environment
     ManagedBy   = "terraform"
   })
+}
+
+resource "azurerm_storage_account_queue_properties" "queue_properties" {
+  storage_account_id = azurerm_storage_account.storage.id
+
+  logging {
+    delete                = true
+    read                  = true
+    write                 = true
+    version               = "1.0"
+    retention_policy_days = 7
+  }
 }
 
 resource "azurerm_storage_container" "container" {
