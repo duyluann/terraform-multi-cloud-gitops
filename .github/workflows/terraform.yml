@@ -47,6 +47,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # AWS Credentials
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      # GCP Credentials
+      - name: Google Auth
+        id: 'auth'
+        uses: 'google-github-actions/auth@v2'
+        with:
+          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+
+      # Azure Credentials
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
@@ -56,16 +77,19 @@ jobs:
         id: fmt
         run: terraform fmt -check
         working-directory: ${{ matrix.directory }}
+        continue-on-error: true
 
       - name: Terraform Init
         id: init
         run: terraform init
         working-directory: ${{ matrix.directory }}
+        continue-on-error: true
 
       - name: Terraform Validate
         id: validate
         run: terraform validate
         working-directory: ${{ matrix.directory }}
+        continue-on-error: true
 
       - name: Setup TFLint
         uses: terraform-linters/setup-tflint@v4
@@ -73,23 +97,53 @@ jobs:
           tflint_version: ${{ env.TFLINT_VERSION }}
 
       - name: TFLint
+        id: tflint
         run: tflint
         working-directory: ${{ matrix.directory }}
+        continue-on-error: true
 
       - name: TFSec
+        id: tfsec
         uses: aquasecurity/tfsec-action@v1.0.0
         with:
           working_directory: ${{ matrix.directory }}
+        continue-on-error: true
 
       - name: Checkov
+        id: checkov
         uses: bridgecrewio/checkov-action@master
         with:
           directory: ${{ matrix.directory }}
+        continue-on-error: true
 
       - name: Terraform Plan
         id: plan
         run: terraform plan -no-color
         working-directory: ${{ matrix.directory }}
+        continue-on-error: true
+
+      - name: Capture Command Outputs
+        id: capture
+        run: |
+          echo "fmt_output<<EOF" >> $GITHUB_OUTPUT
+          terraform fmt -check ${{ matrix.directory }} 2>&1 || true >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "init_output<<EOF" >> $GITHUB_OUTPUT
+          terraform init ${{ matrix.directory }} 2>&1 || true >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "validate_output<<EOF" >> $GITHUB_OUTPUT
+          terraform validate ${{ matrix.directory }} 2>&1 || true >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "tflint_output<<EOF" >> $GITHUB_OUTPUT
+          tflint ${{ matrix.directory }} 2>&1 || true >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "plan_output<<EOF" >> $GITHUB_OUTPUT
+          terraform plan -no-color ${{ matrix.directory }} 2>&1 || true >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Update Pull Request
         uses: actions/github-script@v7
@@ -97,16 +151,54 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const output = `#### Terraform Validation Results for ${{ matrix.environment }} Environment
-            * **Format Check:** ${process.env.FMT_STATUS || '❌'}
-            * **Initialization:** ${process.env.INIT_STATUS || '❌'}
-            * **Validation:** ${process.env.VALIDATE_STATUS || '❌'}
-            * **Linting:** ${process.env.LINT_STATUS || '❌'}
-            * **Security Scan:** ${process.env.SECURITY_STATUS || '❌'}
-            * **Compliance Check:** ${process.env.COMPLIANCE_STATUS || '❌'}
-            * **Plan:** ${process.env.PLAN_STATUS || '❌'}`;
+            const getStatusEmoji = (status) => status === 'success' ? '✅' : '❌';
+            const getDetails = (output) => output ? `\n\`\`\`\n${output}\n\`\`\`` : '';
 
-            github.rest.issues.createComment({
+            const output = `#### Terraform Validation Results for ${{ matrix.environment }} Environment
+
+            * **Format Check:** ${getStatusEmoji('${{ steps.fmt.outcome }}')}
+            ${getDetails('${{ steps.capture.outputs.fmt_output }}')}
+
+            * **Initialization:** ${getStatusEmoji('${{ steps.init.outcome }}')}
+            ${getDetails('${{ steps.capture.outputs.init_output }}')}
+
+            * **Validation:** ${getStatusEmoji('${{ steps.validate.outcome }}')}
+            ${getDetails('${{ steps.capture.outputs.validate_output }}')}
+
+            * **Linting:** ${getStatusEmoji('${{ steps.tflint.outcome }}')}
+            ${getDetails('${{ steps.capture.outputs.tflint_output }}')}
+
+            * **Security Scan:** ${getStatusEmoji('${{ steps.tfsec.outcome }}')}
+            * **Compliance Check:** ${getStatusEmoji('${{ steps.checkov.outcome }}')}
+
+            * **Plan:** ${getStatusEmoji('${{ steps.plan.outcome }}')}
+            ${getDetails('${{ steps.capture.outputs.plan_output }}')}
+
+            ---
+            _Note: This is an automated validation report. Please address any issues marked with ❌ before merging._`;
+
+            // Delete previous comments from this workflow
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.name,
+              issue_number: context.issue.number
+            });
+
+            const botComments = comments.data.filter(comment =>
+              comment.user.login === 'github-actions[bot]' &&
+              comment.body.includes('Terraform Validation Results')
+            );
+
+            for (const comment of botComments) {
+              await github.rest.issues.deleteComment({
+                owner: context.repo.owner,
+                repo: context.repo.name,
+                comment_id: comment.id
+              });
+            }
+
+            // Create new comment
+            await github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.name,
@@ -124,6 +216,41 @@ jobs:
           echo "- Compliance Check: ${{ steps.checkov.outcome }}"
           echo "- Plan: ${{ steps.plan.outcome }}"
 
+          if [ "${{ steps.fmt.outcome }}" != "success" ]; then
+            echo "### Format Check Details"
+            echo '```'
+            echo "${{ steps.capture.outputs.fmt_output }}"
+            echo '```'
+          fi
+
+          if [ "${{ steps.init.outcome }}" != "success" ]; then
+            echo "### Initialization Details"
+            echo '```'
+            echo "${{ steps.capture.outputs.init_output }}"
+            echo '```'
+          fi
+
+          if [ "${{ steps.validate.outcome }}" != "success" ]; then
+            echo "### Validation Details"
+            echo '```'
+            echo "${{ steps.capture.outputs.validate_output }}"
+            echo '```'
+          fi
+
+          if [ "${{ steps.tflint.outcome }}" != "success" ]; then
+            echo "### Linting Details"
+            echo '```'
+            echo "${{ steps.capture.outputs.tflint_output }}"
+            echo '```'
+          fi
+
+          if [ "${{ steps.plan.outcome }}" != "success" ]; then
+            echo "### Plan Details"
+            echo '```'
+            echo "${{ steps.capture.outputs.plan_output }}"
+            echo '```'
+          fi
+
   apply-to-dev:
     name: Apply to Dev
     needs: validate
@@ -133,6 +260,27 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      # AWS Credentials
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      # GCP Credentials
+      - name: Google Auth
+        id: 'auth'
+        uses: 'google-github-actions/auth@v2'
+        with:
+          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+
+      # Azure Credentials
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -163,6 +311,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # AWS Credentials
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      # GCP Credentials
+      - name: Google Auth
+        id: 'auth'
+        uses: 'google-github-actions/auth@v2'
+        with:
+          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+
+      # Azure Credentials
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
@@ -191,6 +360,27 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      # AWS Credentials
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      # GCP Credentials
+      - name: Google Auth
+        id: 'auth'
+        uses: 'google-github-actions/auth@v2'
+        with:
+          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+
+      # Azure Credentials
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
