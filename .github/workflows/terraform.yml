@@ -227,13 +227,13 @@ jobs:
       - name: Print Workflow Summary
         run: |
           echo "## Terraform Validation Results for ${{ matrix.environment }} Environment" >> $GITHUB_STEP_SUMMARY
-          echo "- Format Check: ${{ steps.fmt.outcome }}"
-          echo "- Initialization: ${{ steps.init.outcome }}"
-          echo "- Validation: ${{ steps.validate.outcome }}"
-          echo "- Linting: ${{ steps.tflint.outcome }}"
-          echo "- Security Scan: ${{ steps.tfsec.outcome }}"
-          echo "- Compliance Check: ${{ steps.checkov.outcome }}"
-          echo "- Plan: ${{ steps.plan.outcome }}"
+          echo "- Format Check: ${{ steps.fmt.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Initialization: ${{ steps.init.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Validation: ${{ steps.validate.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Linting: ${{ steps.tflint.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Security Scan: ${{ steps.tfsec.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Compliance Check: ${{ steps.checkov.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Plan: ${{ steps.plan.outcome }}" >> $GITHUB_STEP_SUMMARY
 
           if [ "${{ steps.fmt.outcome }}" != "success" ]; then
             echo "### Format Check Details"
@@ -326,8 +326,8 @@ jobs:
       - name: Print Workflow Summary
         run: |
           echo "## Dev Environment Deployment" >> $GITHUB_STEP_SUMMARY
-          echo "- Initialization: ${{ steps.init.outcome }}"
-          echo "- Apply: ${{ steps.apply.outcome }}"
+          echo "- Initialization: ${{ steps.init.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Apply: ${{ steps.apply.outcome }}" >> $GITHUB_STEP_SUMMARY
 
   apply-to-staging:
     name: Apply to Staging
@@ -385,8 +385,8 @@ jobs:
       - name: Print Workflow Summary
         run: |
           echo "## Staging Environment Deployment" >> $GITHUB_STEP_SUMMARY
-          echo "- Initialization: ${{ steps.init.outcome }}"
-          echo "- Apply: ${{ steps.apply.outcome }}"
+          echo "- Initialization: ${{ steps.init.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Apply: ${{ steps.apply.outcome }}" >> $GITHUB_STEP_SUMMARY
 
   apply-to-prod:
     name: Apply to Production
@@ -444,5 +444,5 @@ jobs:
       - name: Print Workflow Summary
         run: |
           echo "## Production Environment Deployment" >> $GITHUB_STEP_SUMMARY
-          echo "- Initialization: ${{ steps.init.outcome }}"
-          echo "- Apply: ${{ steps.apply.outcome }}"
+          echo "- Initialization: ${{ steps.init.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Apply: ${{ steps.apply.outcome }}" >> $GITHUB_STEP_SUMMARY
