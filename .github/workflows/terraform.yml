@@ -32,6 +32,10 @@ on:
         options:
           - apply
           - destroy
+      project_id:
+        description: 'Optional project ID (if not provided, one will be auto-generated)'
+        required: false
+        type: string
 
 permissions:
   id-token: write
@@ -48,6 +52,7 @@ env:
   ARM_TENANT_ID: "${{ secrets.ARM_TENANT_ID }}"
   AZURE_REGION: "${{ secrets.AZURE_REGION }}"
   AZURE_RESOURCE_GROUP_NAME: "${{ secrets.AZURE_RESOURCE_GROUP_NAME }}"
+  TF_VAR_project_id: "${{ github.event.inputs.project_id }}"
 
 jobs:
   validate:
