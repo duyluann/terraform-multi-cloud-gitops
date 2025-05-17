@@ -2,19 +2,19 @@
 variable "enable_gcp" {
   description = "Enable GCP provider"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "enable_aws" {
   description = "Enable AWS provider"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "enable_azure" {
   description = "Enable Azure provider"
   type        = bool
-  default     = false
+  default     = true
 }
 
 # GCP Variables
