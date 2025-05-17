@@ -12,7 +12,7 @@ module "gcp_storage" {
 
   project_id    = var.project_id
   environment   = local.environment
-  region        = var.region
+  region        = var.gcp_region
   force_destroy = true
   tags          = local.tags
 }
