@@ -1,0 +1,25 @@
+quiet: true
+framework:
+  - terraform
+  - terraform_plan
+skip-check:
+  # AWS
+  - CKV_AWS_93  # Ensure S3 bucket policy does not lockout all but root user
+  - CKV_AWS_41  # Ensure no hard coded AWS access key and secret key exists in provider
+
+  # GCP
+  - CKV_GCP_114 # Ensure public access prevention is enforced on Cloud Storage bucket
+  - CKV_GCP_62  # Bucket should log access
+  - CKV_GCP_29  # Ensure that Cloud Storage buckets have uniform bucket-level access enabled
+  - CKV_GCP_78  # Ensure Cloud storage has versioning enabled
+
+  # Azure
+  - CKV_AZURE_33 # Ensure Storage logging is enabled for Queue service
+  - CKV_AZURE_59 # Ensure that Storage accounts disallow public access
+  - CKV_AZURE_206 # Ensure that Storage Accounts use replication
+  - CKV_AZURE_190 # Ensure that Storage blobs restrict public access
+  - CKV_AZURE_244 # Avoid the use of local users for Azure Storage
+  - CKV_AZURE_44  # Ensure Storage Account is using the latest version of TLS encryption
+  - CKV_AZURE_36  # Ensure 'Trusted Microsoft Services' is enabled for Storage Account access
+  - CKV_AZURE_3   # Ensure that 'enable_https_traffic_only' is enabled
+  - CKV_AZURE_34  # Ensure that 'Public access level' is set to Private for blob containers

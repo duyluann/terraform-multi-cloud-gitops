@@ -4,15 +4,34 @@ resource "azurerm_storage_account" "storage" {
   location                 = var.region
   account_tier             = "Standard"
   account_replication_type = "LRS"
-  min_tls_version         = "TLS1_2"
+  min_tls_version          = "TLS1_2"
 
-  tags = merge(
-    var.tags,
-    {
-      Environment = var.environment
-      ManagedBy   = "terraform"
+  # Disable public access
+  allow_nested_items_to_be_public = false
+
+  # Enable blob service logging
+  blob_properties {
+    versioning_enabled = true
+    container_delete_retention_policy {
+      days = 7
     }
-  )
+  }
+
+  # Enable queue service logging
+  queue_properties {
+    logging {
+      delete                = true
+      read                  = true
+      write                 = true
+      version               = "1.0"
+      retention_policy_days = 7
+    }
+  }
+
+  tags = merge(var.tags, {
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  })
 }
 
 resource "azurerm_storage_container" "container" {
