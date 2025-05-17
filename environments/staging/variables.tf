@@ -1,6 +1,27 @@
-variable "project_id" {
+# Provider enablement flags
+variable "enable_gcp" {
+  description = "Enable GCP provider"
+  type        = bool
+  default     = false
+}
+
+variable "enable_aws" {
+  description = "Enable AWS provider"
+  type        = bool
+  default     = false
+}
+
+variable "enable_azure" {
+  description = "Enable Azure provider"
+  type        = bool
+  default     = false
+}
+
+# GCP Variables
+variable "gcp_project_id" {
   description = "The GCP project ID"
   type        = string
+  default     = null
 }
 
 variable "gcp_region" {
@@ -33,4 +54,10 @@ variable "azure_region" {
   description = "The Azure region to deploy resources"
   type        = string
   default     = "southeastasia"
+}
+
+variable "azure_resource_group_name" {
+  description = "The Azure resource group name"
+  type        = string
+  default     = null
 }
