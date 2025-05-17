@@ -43,15 +43,19 @@ jobs:
             directory: './environments/staging'
           - environment: prod
             directory: './environments/prod'
+    environment: ${{ matrix.environment }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Debug AWS credentials
+      - name: Debug Environment Secrets
         run: |
+          echo "Environment: ${{ matrix.environment }}"
           echo "AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID != '' && '***' || 'NOT SET' }}"
           echo "AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY != '' && '***' || 'NOT SET' }}"
           echo "AWS_REGION: ${{ secrets.AWS_REGION != '' && '***' || 'NOT SET' }}"
+          echo "GCP_SA_KEY: ${{ secrets.GCP_SA_KEY != '' && '***' || 'NOT SET' }}"
+          echo "AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS != '' && '***' || 'NOT SET' }}"
 
       # AWS Credentials
       - name: Configure AWS Credentials
@@ -267,6 +271,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Debug Environment Secrets
+        run: |
+          echo "Environment: dev"
+          echo "AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID != '' && '***' || 'NOT SET' }}"
+          echo "AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY != '' && '***' || 'NOT SET' }}"
+          echo "AWS_REGION: ${{ secrets.AWS_REGION != '' && '***' || 'NOT SET' }}"
+          echo "GCP_SA_KEY: ${{ secrets.GCP_SA_KEY != '' && '***' || 'NOT SET' }}"
+          echo "AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS != '' && '***' || 'NOT SET' }}"
+
       # AWS Credentials
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -317,6 +330,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Debug Environment Secrets
+        run: |
+          echo "Environment: staging"
+          echo "AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID != '' && '***' || 'NOT SET' }}"
+          echo "AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY != '' && '***' || 'NOT SET' }}"
+          echo "AWS_REGION: ${{ secrets.AWS_REGION != '' && '***' || 'NOT SET' }}"
+          echo "GCP_SA_KEY: ${{ secrets.GCP_SA_KEY != '' && '***' || 'NOT SET' }}"
+          echo "AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS != '' && '***' || 'NOT SET' }}"
+
       # AWS Credentials
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -366,6 +388,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Debug Environment Secrets
+        run: |
+          echo "Environment: prod"
+          echo "AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID != '' && '***' || 'NOT SET' }}"
+          echo "AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY != '' && '***' || 'NOT SET' }}"
+          echo "AWS_REGION: ${{ secrets.AWS_REGION != '' && '***' || 'NOT SET' }}"
+          echo "GCP_SA_KEY: ${{ secrets.GCP_SA_KEY != '' && '***' || 'NOT SET' }}"
+          echo "AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS != '' && '***' || 'NOT SET' }}"
 
       # AWS Credentials
       - name: Configure AWS Credentials
