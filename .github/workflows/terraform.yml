@@ -119,12 +119,21 @@ jobs:
           working_directory: ${{ matrix.directory }}
         continue-on-error: true
 
-      - name: Checkov
+      - name: Checkov GitHub Action
         id: checkov
-        uses: bridgecrewio/checkov-action@master
+        uses: bridgecrewio/checkov-action@v12
         with:
           directory: ${{ matrix.directory }}
+          output_format: cli,sarif
+          output_file_path: console,results.sarif
+          config_file: .checkov.yaml
         continue-on-error: true
+
+      - name: Upload SARIF file
+        uses: github/codeql-action/upload-sarif@v2
+        if: success() || failure()
+        with:
+          sarif_file: results.sarif
 
       - name: Terraform Plan
         id: plan
@@ -437,4 +446,3 @@ jobs:
           echo "## Production Environment Deployment" >> $GITHUB_STEP_SUMMARY
           echo "- Initialization: ${{ steps.init.outcome }}"
           echo "- Apply: ${{ steps.apply.outcome }}"
-
