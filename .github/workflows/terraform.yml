@@ -93,27 +93,24 @@ jobs:
         id: init
         run: terraform init
         working-directory: ${{ matrix.directory }}
-        continue-on-error: true
 
       - name: Terraform Validate
         id: validate
         run: terraform validate
         working-directory: ${{ matrix.directory }}
-        continue-on-error: true
 
       - name: Terraform Plan
         id: plan
         run: |
           terraform plan -no-color -out=tfplan \
-            -var="project_id=${{ secrets.GCP_PROJECT }}" \
-            -var="aws_account_id=${{ secrets.AWS_ACCOUNT_ID }}" \
-            -var="aws_region=${{ secrets.AWS_REGION || 'ap-southeast-1' }}" \
-            -var="azure_subscription_id=${{ secrets.AZURE_SUBSCRIPTION_ID }}" \
-            -var="azure_region=${{ secrets.AZURE_REGION || 'southeastasia' }}" \
-            -var="azure_resource_group_name=${{ secrets.AZURE_RESOURCE_GROUP_NAME }}"
+            -var="project_id=${{ env.GCP_PROJECT }}" \
+            -var="aws_account_id=${{ env.AWS_ACCOUNT_ID }}" \
+            -var="aws_region=${{ env.AWS_REGION || 'ap-southeast-1' }}" \
+            -var="azure_subscription_id=${{ env.AZURE_SUBSCRIPTION_ID }}" \
+            -var="azure_region=${{ env.AZURE_REGION || 'southeastasia' }}" \
+            -var="azure_resource_group_name=${{ env.AZURE_RESOURCE_GROUP_NAME }}"
           terraform show -no-color tfplan > tfplan.txt
         working-directory: ${{ matrix.directory }}
-        continue-on-error: true
 
       - name: Upload Terraform Plan
         uses: actions/upload-artifact@v4
