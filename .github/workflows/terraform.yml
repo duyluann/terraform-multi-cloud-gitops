@@ -1,26 +1,52 @@
-name: 'Terraform'
+name: 'Terraform GitOps'
 
 on:
   push:
     branches:
       - main
-      - staging
-      - dev
   pull_request:
     branches:
       - main
-      - staging
-      - dev
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+        default: 'dev'
+
+env:
+  TERRAFORM_VERSION: '1.0.0'
+  TFLINT_VERSION: 'v0.45.0'
+  TFSEC_VERSION: 'v1.0.0'
+  CHECKOV_VERSION: 'master'
+  DEV_DIR: './environments/dev'
+  STAGING_DIR: './environments/staging'
+  PROD_DIR: './environments/prod'
 
 permissions:
   contents: read
   pull-requests: write
 
 jobs:
-  terraform:
-    name: 'Terraform'
+  validate:
+    name: 'Validate Terraform'
     runs-on: ubuntu-latest
-    environment: ${{ github.ref_name }}
+    if: github.event_name == 'pull_request'
+    strategy:
+      matrix:
+        environment: [dev, staging, prod]
+        include:
+          - environment: dev
+            directory: ${{ env.DEV_DIR }}
+          - environment: staging
+            directory: ${{ env.STAGING_DIR }}
+          - environment: prod
+            directory: ${{ env.PROD_DIR }}
 
     defaults:
       run:
@@ -33,12 +59,12 @@ jobs:
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v2
       with:
-        terraform_version: 1.0.0
+        terraform_version: ${{ env.TERRAFORM_VERSION }}
 
     - name: Setup tflint
       uses: terraform-linters/setup-tflint@v3
       with:
-        tflint_version: v0.45.0
+        tflint_version: ${{ env.TFLINT_VERSION }}
 
     - name: Setup tfsec
       uses: aquasecurity/tfsec-action@v1.0.0
@@ -48,7 +74,7 @@ jobs:
     - name: Setup Checkov
       uses: bridgecrewio/checkov-action@master
       with:
-        directory: environments/${{ github.ref_name }}
+        directory: ${{ matrix.directory }}
         soft_fail: true
 
     - name: Terraform Format
@@ -59,41 +85,39 @@ jobs:
     - name: Terraform Init
       id: init
       run: terraform init
-      working-directory: ./environments/${{ github.ref_name }}
+      working-directory: ${{ matrix.directory }}
 
     - name: Terraform Validate
       id: validate
       run: terraform validate
-      working-directory: ./environments/${{ github.ref_name }}
+      working-directory: ${{ matrix.directory }}
 
     - name: Run tflint
       id: tflint
       run: tflint --init && tflint
-      working-directory: ./environments/${{ github.ref_name }}
+      working-directory: ${{ matrix.directory }}
       continue-on-error: true
 
     - name: Run tfsec
       id: tfsec
       run: tfsec .
-      working-directory: ./environments/${{ github.ref_name }}
+      working-directory: ${{ matrix.directory }}
       continue-on-error: true
 
     - name: Run Checkov
       id: checkov
       run: checkov -d .
-      working-directory: ./environments/${{ github.ref_name }}
+      working-directory: ${{ matrix.directory }}
       continue-on-error: true
 
     - name: Terraform Plan
       id: plan
-      if: github.event_name == 'pull_request'
       run: terraform plan -no-color
-      working-directory: ./environments/${{ github.ref_name }}
+      working-directory: ${{ matrix.directory }}
       continue-on-error: true
 
     - name: Update Pull Request
       uses: actions/github-script@v6
-      if: github.event_name == 'pull_request'
       env:
         PLAN: "terraform\n${{ steps.plan.outputs.stdout }}"
         TFLINT: "tflint\n${{ steps.tflint.outputs.stdout }}"
@@ -102,7 +126,8 @@ jobs:
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
-          const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
+          const output = `#### Terraform Validation Summary for ${{ matrix.environment }} Environment
+          #### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
           #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
           #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
           #### Terraform Lint 🔍\`${{ steps.tflint.outcome }}\`
@@ -149,7 +174,127 @@ jobs:
             body: output
           })
 
+    - name: Print Workflow Summary
+      if: always()
+      run: |
+        echo "## Terraform Validation Summary for ${{ matrix.environment }} Environment" >> $GITHUB_STEP_SUMMARY
+        echo "### Format Check" >> $GITHUB_STEP_SUMMARY
+        echo "- Status: ${{ steps.fmt.outcome }}" >> $GITHUB_STEP_SUMMARY
+        echo "### Initialization" >> $GITHUB_STEP_SUMMARY
+        echo "- Status: ${{ steps.init.outcome }}" >> $GITHUB_STEP_SUMMARY
+        echo "### Validation" >> $GITHUB_STEP_SUMMARY
+        echo "- Status: ${{ steps.validate.outcome }}" >> $GITHUB_STEP_SUMMARY
+        echo "### Linting" >> $GITHUB_STEP_SUMMARY
+        echo "- Status: ${{ steps.tflint.outcome }}" >> $GITHUB_STEP_SUMMARY
+        echo "### Security Scan" >> $GITHUB_STEP_SUMMARY
+        echo "- Status: ${{ steps.tfsec.outcome }}" >> $GITHUB_STEP_SUMMARY
+        echo "### Compliance Check" >> $GITHUB_STEP_SUMMARY
+        echo "- Status: ${{ steps.checkov.outcome }}" >> $GITHUB_STEP_SUMMARY
+        echo "### Plan" >> $GITHUB_STEP_SUMMARY
+        echo "- Status: ${{ steps.plan.outcome }}" >> $GITHUB_STEP_SUMMARY
+
+  apply-to-dev:
+    name: 'Apply to Dev'
+    runs-on: ubuntu-latest
+    environment: dev
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'dev')
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v2
+      with:
+        terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+    - name: Terraform Init
+      id: init
+      run: terraform init
+      working-directory: ${{ env.DEV_DIR }}
+
     - name: Terraform Apply
-      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      id: apply
       run: terraform apply -auto-approve
-      working-directory: ./environments/${{ github.ref_name }}
+      working-directory: ${{ env.DEV_DIR }}
+
+    - name: Print Workflow Summary
+      if: always()
+      run: |
+        echo "## Dev Environment Deployment Summary" >> $GITHUB_STEP_SUMMARY
+        echo "### Initialization" >> $GITHUB_STEP_SUMMARY
+        echo "- Status: ${{ steps.init.outcome }}" >> $GITHUB_STEP_SUMMARY
+        echo "### Apply" >> $GITHUB_STEP_SUMMARY
+        echo "- Status: ${{ steps.apply.outcome }}" >> $GITHUB_STEP_SUMMARY
+
+  apply-to-staging:
+    name: 'Apply to Staging'
+    needs: apply-to-dev
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging')
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Terraform Init
+        id: init
+        run: terraform init
+        working-directory: ${{ env.STAGING_DIR }}
+
+      - name: Terraform Apply
+        id: apply
+        run: terraform apply -auto-approve
+        working-directory: ${{ env.STAGING_DIR }}
+
+      - name: Print Workflow Summary
+        if: always()
+        run: |
+          echo "## Staging Environment Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "### Initialization" >> $GITHUB_STEP_SUMMARY
+          echo "- Status: ${{ steps.init.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "### Apply" >> $GITHUB_STEP_SUMMARY
+          echo "- Status: ${{ steps.apply.outcome }}" >> $GITHUB_STEP_SUMMARY
+
+  apply-to-prod:
+    name: 'Apply to Production'
+    needs: apply-to-staging
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prod')
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Terraform Init
+        id: init
+        run: terraform init
+        working-directory: ${{ env.PROD_DIR }}
+
+      - name: Terraform Apply
+        id: apply
+        run: terraform apply -auto-approve
+        working-directory: ${{ env.PROD_DIR }}
+
+      - name: Print Workflow Summary
+        if: always()
+        run: |
+          echo "## Production Environment Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "### Initialization" >> $GITHUB_STEP_SUMMARY
+          echo "- Status: ${{ steps.init.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "### Apply" >> $GITHUB_STEP_SUMMARY
+          echo "- Status: ${{ steps.apply.outcome }}" >> $GITHUB_STEP_SUMMARY

@@ -134,3 +134,31 @@ To promote changes between environments:
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Workflow Process
+
+The following diagram illustrates the workflow process:
+
+```mermaid
+graph TD
+    A[Pull Request] --> B{Validation}
+    B -->|Pass| C[Main Branch]
+    B -->|Fail| D[Fix Issues]
+    D --> A
+
+    C --> E[Dev Environment]
+    E -->|Auto| F[Staging Environment]
+    F -->|Auto| G[Production Environment]
+
+    H[Manual Trigger] -->|Dev| E
+    H -->|Staging| F
+    H -->|Production| G
+
+    E --> I{Approval}
+    F --> J{Approval}
+    G --> K{Approval}
+
+    I -->|Approved| F
+    J -->|Approved| G
+    K -->|Approved| L[Deploy]
+```
