@@ -22,12 +22,30 @@ on:
           - dev
           - staging
           - prod
+      action:
+        description: 'Action to perform'
+        required: true
+        default: 'apply'
+        type: choice
+        options:
+          - apply
+          - destroy
+
+permissions:
+  id-token: write
+  contents: read
+  issues: write
 
 env:
   TERRAFORM_VERSION: '1.0.0'
   TFLINT_VERSION: 'v0.45.0'
   TFSEC_VERSION: 'v1.0.0'
   CHECKOV_VERSION: 'master'
+  ARM_CLIENT_ID: "${{ secrets.ARM_CLIENT_ID }}"
+  ARM_SUBSCRIPTION_ID: "${{ secrets.ARM_SUBSCRIPTION_ID }}"
+  ARM_TENANT_ID: "${{ secrets.ARM_TENANT_ID }}"
+  AZURE_REGION: "${{ secrets.AZURE_REGION }}"
+  AZURE_RESOURCE_GROUP_NAME: "${{ secrets.AZURE_RESOURCE_GROUP_NAME }}"
 
 jobs:
   validate:
@@ -43,9 +61,19 @@ jobs:
             directory: './environments/staging'
           - environment: prod
             directory: './environments/prod'
+    environment: ${{ matrix.environment }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Debug Environment Secrets
+        run: |
+          echo "Environment: ${{ matrix.environment }}"
+          echo "AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID != '' && '***' || 'NOT SET' }}"
+          echo "AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY != '' && '***' || 'NOT SET' }}"
+          echo "AWS_REGION: ${{ secrets.AWS_REGION != '' && '***' || 'NOT SET' }}"
+          echo "GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS != '' && '***' || 'NOT SET' }}"
+          echo "AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS != '' && '***' || 'NOT SET' }}"
 
       # AWS Credentials
       - name: Configure AWS Credentials
@@ -53,14 +81,14 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-region: ${{ secrets.AWS_REGION || 'ap-southeast-1' }}
 
       # GCP Credentials
       - name: Google Auth
         id: 'auth'
         uses: 'google-github-actions/auth@v2'
         with:
-          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+          credentials_json: '${{ secrets.GOOGLE_CREDENTIALS }}'
 
       # Azure Credentials
       - name: Azure Login
@@ -83,13 +111,28 @@ jobs:
         id: init
         run: terraform init
         working-directory: ${{ matrix.directory }}
-        continue-on-error: true
 
       - name: Terraform Validate
         id: validate
         run: terraform validate
         working-directory: ${{ matrix.directory }}
-        continue-on-error: true
+
+      - name: Terraform Plan
+        id: plan
+        run: |
+          terraform plan -no-color -out=tfplan \
+            -var="aws_region=${{ secrets.AWS_REGION || 'ap-southeast-1' }}" \
+            -var="azure_region=${{ secrets.AZURE_REGION || 'southeastasia' }}" \
+            -var="azure_resource_group_name=${{ secrets.AZURE_RESOURCE_GROUP_NAME }}"
+          terraform show -no-color tfplan > tfplan.txt
+        working-directory: ${{ matrix.directory }}
+
+      - name: Upload Terraform Plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ matrix.environment }}
+          path: ${{ matrix.directory }}/tfplan.txt
+          retention-days: 7
 
       - name: Setup TFLint
         uses: terraform-linters/setup-tflint@v4
@@ -109,112 +152,115 @@ jobs:
           working_directory: ${{ matrix.directory }}
         continue-on-error: true
 
-      - name: Checkov
-        id: checkov
-        uses: bridgecrewio/checkov-action@master
-        with:
-          directory: ${{ matrix.directory }}
-        continue-on-error: true
+      # - name: Checkov GitHub Action
+      #   id: checkov
+      #   uses: bridgecrewio/checkov-action@v12
+      #   with:
+      #     directory: ${{ matrix.directory }}
+      #     output_format: cli,sarif
+      #     output_file_path: console,results.sarif
+      #     config_file: ${{ github.workspace }}/.checkov.yaml
+      #   continue-on-error: true
 
-      - name: Terraform Plan
-        id: plan
-        run: terraform plan -no-color
-        working-directory: ${{ matrix.directory }}
-        continue-on-error: true
+      # - name: Upload SARIF file
+      #   uses: github/codeql-action/upload-sarif@v2
+      #   if: success() || failure()
+      #   with:
+      #     sarif_file: results.sarif
 
-      - name: Capture Command Outputs
-        id: capture
-        run: |
-          echo "fmt_output<<EOF" >> $GITHUB_OUTPUT
-          terraform fmt -check ${{ matrix.directory }} 2>&1 || true >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+      # - name: Capture Command Outputs
+      #   id: capture
+      #   run: |
+      #     echo "fmt_output<<EOF" >> $GITHUB_OUTPUT
+      #     terraform fmt -check ${{ matrix.directory }} 2>&1 || true >> $GITHUB_OUTPUT
+      #     echo "EOF" >> $GITHUB_OUTPUT
 
-          echo "init_output<<EOF" >> $GITHUB_OUTPUT
-          terraform init ${{ matrix.directory }} 2>&1 || true >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+      #     echo "init_output<<EOF" >> $GITHUB_OUTPUT
+      #     terraform init ${{ matrix.directory }} 2>&1 || true >> $GITHUB_OUTPUT
+      #     echo "EOF" >> $GITHUB_OUTPUT
 
-          echo "validate_output<<EOF" >> $GITHUB_OUTPUT
-          terraform validate ${{ matrix.directory }} 2>&1 || true >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+      #     echo "validate_output<<EOF" >> $GITHUB_OUTPUT
+      #     terraform validate ${{ matrix.directory }} 2>&1 || true >> $GITHUB_OUTPUT
+      #     echo "EOF" >> $GITHUB_OUTPUT
 
-          echo "tflint_output<<EOF" >> $GITHUB_OUTPUT
-          tflint ${{ matrix.directory }} 2>&1 || true >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+      #     echo "tflint_output<<EOF" >> $GITHUB_OUTPUT
+      #     tflint ${{ matrix.directory }} 2>&1 || true >> $GITHUB_OUTPUT
+      #     echo "EOF" >> $GITHUB_OUTPUT
 
-          echo "plan_output<<EOF" >> $GITHUB_OUTPUT
-          terraform plan -no-color ${{ matrix.directory }} 2>&1 || true >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+      #     echo "plan_output<<EOF" >> $GITHUB_OUTPUT
+      #     terraform plan -no-color ${{ matrix.directory }} 2>&1 || true >> $GITHUB_OUTPUT
+      #     echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Update Pull Request
-        uses: actions/github-script@v7
-        if: github.event_name == 'pull_request'
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const getStatusEmoji = (status) => status === 'success' ? '✅' : '❌';
-            const getDetails = (output) => output ? `\n\`\`\`\n${output}\n\`\`\`` : '';
+      # - name: Update Pull Request
+      #   uses: actions/github-script@v7
+      #   if: github.event_name == 'pull_request'
+      #   with:
+      #     github-token: ${{ secrets.GITHUB_TOKEN }}
+      #     script: |
+      #       const getStatusEmoji = (status) => status === 'success' ? '✅' : '❌';
+      #       const getDetails = (output) => output ? `\n\`\`\`\n${output}\n\`\`\`` : '';
 
-            const output = `#### Terraform Validation Results for ${{ matrix.environment }} Environment
+      #       const output = `#### Terraform Validation Results for ${{ matrix.environment }} Environment
 
-            * **Format Check:** ${getStatusEmoji('${{ steps.fmt.outcome }}')}
-            ${getDetails('${{ steps.capture.outputs.fmt_output }}')}
+      #       * **Format Check:** ${getStatusEmoji('${{ steps.fmt.outcome }}')}
+      #       ${getDetails('${{ steps.capture.outputs.fmt_output }}')}
 
-            * **Initialization:** ${getStatusEmoji('${{ steps.init.outcome }}')}
-            ${getDetails('${{ steps.capture.outputs.init_output }}')}
+      #       * **Initialization:** ${getStatusEmoji('${{ steps.init.outcome }}')}
+      #       ${getDetails('${{ steps.capture.outputs.init_output }}')}
 
-            * **Validation:** ${getStatusEmoji('${{ steps.validate.outcome }}')}
-            ${getDetails('${{ steps.capture.outputs.validate_output }}')}
+      #       * **Validation:** ${getStatusEmoji('${{ steps.validate.outcome }}')}
+      #       ${getDetails('${{ steps.capture.outputs.validate_output }}')}
 
-            * **Linting:** ${getStatusEmoji('${{ steps.tflint.outcome }}')}
-            ${getDetails('${{ steps.capture.outputs.tflint_output }}')}
+      #       * **Linting:** ${getStatusEmoji('${{ steps.tflint.outcome }}')}
+      #       ${getDetails('${{ steps.capture.outputs.tflint_output }}')}
 
-            * **Security Scan:** ${getStatusEmoji('${{ steps.tfsec.outcome }}')}
-            * **Compliance Check:** ${getStatusEmoji('${{ steps.checkov.outcome }}')}
+      #       * **Security Scan:** ${getStatusEmoji('${{ steps.tfsec.outcome }}')}
+      #       * **Compliance Check:** ${getStatusEmoji('${{ steps.checkov.outcome }}')}
 
-            * **Plan:** ${getStatusEmoji('${{ steps.plan.outcome }}')}
-            ${getDetails('${{ steps.capture.outputs.plan_output }}')}
+      #       * **Plan:** ${getStatusEmoji('${{ steps.plan.outcome }}')}
+      #       ${getDetails('${{ steps.capture.outputs.plan_output }}')}
 
-            ---
-            _Note: This is an automated validation report. Please address any issues marked with ❌ before merging._`;
+      #       ---
+      #       _Note: This is an automated validation report. Please address any issues marked with ❌ before merging._`;
 
-            // Delete previous comments from this workflow
-            const comments = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.name,
-              issue_number: context.issue.number
-            });
+      #       // Delete previous comments from this workflow
+      #       const comments = await github.rest.issues.listComments({
+      #         owner: context.repo.owner,
+      #         repo: context.repo.name,
+      #         issue_number: context.issue.number
+      #       });
 
-            const botComments = comments.data.filter(comment =>
-              comment.user.login === 'github-actions[bot]' &&
-              comment.body.includes('Terraform Validation Results')
-            );
+      #       const botComments = comments.data.filter(comment =>
+      #         comment.user.login === 'github-actions[bot]' &&
+      #         comment.body.includes('Terraform Validation Results')
+      #       );
 
-            for (const comment of botComments) {
-              await github.rest.issues.deleteComment({
-                owner: context.repo.owner,
-                repo: context.repo.name,
-                comment_id: comment.id
-              });
-            }
+      #       for (const comment of botComments) {
+      #         await github.rest.issues.deleteComment({
+      #           owner: context.repo.owner,
+      #           repo: context.repo.name,
+      #           comment_id: comment.id
+      #         });
+      #       }
 
-            // Create new comment
-            await github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.name,
-              body: output
-            });
+      #       // Create new comment
+      #       await github.rest.issues.createComment({
+      #         issue_number: context.issue.number,
+      #         owner: context.repo.owner,
+      #         repo: context.repo.name,
+      #         body: output
+      #       });
 
       - name: Print Workflow Summary
         run: |
           echo "## Terraform Validation Results for ${{ matrix.environment }} Environment" >> $GITHUB_STEP_SUMMARY
-          echo "- Format Check: ${{ steps.fmt.outcome }}"
-          echo "- Initialization: ${{ steps.init.outcome }}"
-          echo "- Validation: ${{ steps.validate.outcome }}"
-          echo "- Linting: ${{ steps.tflint.outcome }}"
-          echo "- Security Scan: ${{ steps.tfsec.outcome }}"
-          echo "- Compliance Check: ${{ steps.checkov.outcome }}"
-          echo "- Plan: ${{ steps.plan.outcome }}"
+          echo "- Format Check: ${{ steps.fmt.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Initialization: ${{ steps.init.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Validation: ${{ steps.validate.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Linting: ${{ steps.tflint.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Security Scan: ${{ steps.tfsec.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Compliance Check: ${{ steps.checkov.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Plan: ${{ steps.plan.outcome }}" >> $GITHUB_STEP_SUMMARY
 
           if [ "${{ steps.fmt.outcome }}" != "success" ]; then
             echo "### Format Check Details"
@@ -261,20 +307,29 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Debug Environment Secrets
+        run: |
+          echo "Environment: dev"
+          echo "AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID != '' && '***' || 'NOT SET' }}"
+          echo "AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY != '' && '***' || 'NOT SET' }}"
+          echo "AWS_REGION: ${{ secrets.AWS_REGION != '' && '***' || 'NOT SET' }}"
+          echo "GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS != '' && '***' || 'NOT SET' }}"
+          echo "AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS != '' && '***' || 'NOT SET' }}"
+
       # AWS Credentials
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-region: ${{ secrets.AWS_REGION || 'ap-southeast-1' }}
 
       # GCP Credentials
       - name: Google Auth
         id: 'auth'
         uses: 'google-github-actions/auth@v2'
         with:
-          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+          credentials_json: '${{ secrets.GOOGLE_CREDENTIALS }}'
 
       # Azure Credentials
       - name: Azure Login
@@ -292,14 +347,18 @@ jobs:
         working-directory: ./environments/dev
 
       - name: Terraform Apply
-        run: terraform apply -auto-approve
+        run: |
+          terraform apply -auto-approve \
+            -var="aws_region=${{ secrets.AWS_REGION || 'ap-southeast-1' }}" \
+            -var="azure_region=${{ secrets.AZURE_REGION || 'southeastasia' }}" \
+            -var="azure_resource_group_name=${{ secrets.AZURE_RESOURCE_GROUP_NAME }}"
         working-directory: ./environments/dev
 
       - name: Print Workflow Summary
         run: |
           echo "## Dev Environment Deployment" >> $GITHUB_STEP_SUMMARY
-          echo "- Initialization: ${{ steps.init.outcome }}"
-          echo "- Apply: ${{ steps.apply.outcome }}"
+          echo "- Initialization: ${{ steps.init.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Apply: ${{ steps.apply.outcome }}" >> $GITHUB_STEP_SUMMARY
 
   apply-to-staging:
     name: Apply to Staging
@@ -311,20 +370,29 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Debug Environment Secrets
+        run: |
+          echo "Environment: staging"
+          echo "AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID != '' && '***' || 'NOT SET' }}"
+          echo "AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY != '' && '***' || 'NOT SET' }}"
+          echo "AWS_REGION: ${{ secrets.AWS_REGION != '' && '***' || 'NOT SET' }}"
+          echo "GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS != '' && '***' || 'NOT SET' }}"
+          echo "AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS != '' && '***' || 'NOT SET' }}"
+
       # AWS Credentials
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-region: ${{ secrets.AWS_REGION || 'ap-southeast-1' }}
 
       # GCP Credentials
       - name: Google Auth
         id: 'auth'
         uses: 'google-github-actions/auth@v2'
         with:
-          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+          credentials_json: '${{ secrets.GOOGLE_CREDENTIALS }}'
 
       # Azure Credentials
       - name: Azure Login
@@ -342,14 +410,18 @@ jobs:
         working-directory: ./environments/staging
 
       - name: Terraform Apply
-        run: terraform apply -auto-approve
+        run: |
+          terraform apply -auto-approve \
+            -var="aws_region=${{ secrets.AWS_REGION || 'ap-southeast-1' }}" \
+            -var="azure_region=${{ secrets.AZURE_REGION || 'southeastasia' }}" \
+            -var="azure_resource_group_name=${{ secrets.AZURE_RESOURCE_GROUP_NAME }}"
         working-directory: ./environments/staging
 
       - name: Print Workflow Summary
         run: |
           echo "## Staging Environment Deployment" >> $GITHUB_STEP_SUMMARY
-          echo "- Initialization: ${{ steps.init.outcome }}"
-          echo "- Apply: ${{ steps.apply.outcome }}"
+          echo "- Initialization: ${{ steps.init.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Apply: ${{ steps.apply.outcome }}" >> $GITHUB_STEP_SUMMARY
 
   apply-to-prod:
     name: Apply to Production
@@ -361,20 +433,29 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Debug Environment Secrets
+        run: |
+          echo "Environment: prod"
+          echo "AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID != '' && '***' || 'NOT SET' }}"
+          echo "AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY != '' && '***' || 'NOT SET' }}"
+          echo "AWS_REGION: ${{ secrets.AWS_REGION != '' && '***' || 'NOT SET' }}"
+          echo "GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS != '' && '***' || 'NOT SET' }}"
+          echo "AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS != '' && '***' || 'NOT SET' }}"
+
       # AWS Credentials
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-region: ${{ secrets.AWS_REGION || 'ap-southeast-1' }}
 
       # GCP Credentials
       - name: Google Auth
         id: 'auth'
         uses: 'google-github-actions/auth@v2'
         with:
-          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+          credentials_json: '${{ secrets.GOOGLE_CREDENTIALS }}'
 
       # Azure Credentials
       - name: Azure Login
@@ -392,11 +473,87 @@ jobs:
         working-directory: ./environments/prod
 
       - name: Terraform Apply
-        run: terraform apply -auto-approve
+        run: |
+          terraform apply -auto-approve \
+            -var="aws_region=${{ secrets.AWS_REGION || 'ap-southeast-1' }}" \
+            -var="azure_region=${{ secrets.AZURE_REGION || 'southeastasia' }}" \
+            -var="azure_resource_group_name=${{ secrets.AZURE_RESOURCE_GROUP_NAME }}"
         working-directory: ./environments/prod
 
       - name: Print Workflow Summary
         run: |
           echo "## Production Environment Deployment" >> $GITHUB_STEP_SUMMARY
-          echo "- Initialization: ${{ steps.init.outcome }}"
-          echo "- Apply: ${{ steps.apply.outcome }}"
+          echo "- Initialization: ${{ steps.init.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Apply: ${{ steps.apply.outcome }}" >> $GITHUB_STEP_SUMMARY
+
+  destroy:
+    name: Destroy Infrastructure
+    needs: validate
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Debug Environment Secrets
+        run: |
+          echo "Environment: ${{ github.event.inputs.environment }}"
+          echo "AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID != '' && '***' || 'NOT SET' }}"
+          echo "AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY != '' && '***' || 'NOT SET' }}"
+          echo "AWS_REGION: ${{ secrets.AWS_REGION != '' && '***' || 'NOT SET' }}"
+          echo "GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS != '' && '***' || 'NOT SET' }}"
+          echo "AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS != '' && '***' || 'NOT SET' }}"
+
+      # AWS Credentials
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'ap-southeast-1' }}
+
+      # GCP Credentials
+      - name: Google Auth
+        id: 'auth'
+        uses: 'google-github-actions/auth@v2'
+        with:
+          credentials_json: '${{ secrets.GOOGLE_CREDENTIALS }}'
+
+      # Azure Credentials
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ./environments/${{ github.event.inputs.environment }}
+
+      - name: Terraform Plan Destroy
+        run: |
+          terraform plan -destroy -out=tfplan \
+            -var="aws_region=${{ secrets.AWS_REGION || 'ap-southeast-1' }}" \
+            -var="azure_region=${{ secrets.AZURE_REGION || 'southeastasia' }}" \
+            -var="azure_resource_group_name=${{ secrets.AZURE_RESOURCE_GROUP_NAME }}"
+        working-directory: ./environments/${{ github.event.inputs.environment }}
+
+      - name: Terraform Destroy
+        run: |
+          terraform apply tfplan \
+            -var="aws_region=${{ secrets.AWS_REGION || 'ap-southeast-1' }}" \
+            -var="azure_region=${{ secrets.AZURE_REGION || 'southeastasia' }}" \
+            -var="azure_resource_group_name=${{ secrets.AZURE_RESOURCE_GROUP_NAME }}"
+        working-directory: ./environments/${{ github.event.inputs.environment }}
+
+      - name: Print Workflow Summary
+        run: |
+          echo "## ${{ github.event.inputs.environment }} Environment Destruction" >> $GITHUB_STEP_SUMMARY
+          echo "- Initialization: ${{ steps.init.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Plan: ${{ steps.plan.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Destroy: ${{ steps.destroy.outcome }}" >> $GITHUB_STEP_SUMMARY

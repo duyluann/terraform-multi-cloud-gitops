@@ -23,25 +23,110 @@ A production-ready Terraform template for managing multi-cloud infrastructure us
   - Compliance checking
   - Environment-specific security rules
 
+## Cloud Provider Credentials Setup
+
+This template requires credentials for each cloud provider you plan to use. Follow these steps to configure the credentials in GitHub:
+
+### 1. Create GitHub Environments
+
+First, create environments in your GitHub repository:
+
+1. Go to your repository settings
+2. Navigate to "Environments"
+3. Create three environments:
+   - `dev`
+   - `staging`
+   - `prod`
+
+### 2. Configure Cloud Provider Credentials
+
+For each environment, add the required secrets following the official GitHub Actions documentation:
+
+- **AWS**: Follow [aws-actions/configure-aws-credentials](https://github.com/aws-actions/configure-aws-credentials)
+- **GCP**: Follow [google-github-actions/auth](https://github.com/google-github-actions/auth)
+- **Azure**: Follow [azure/login](https://github.com/Azure/login)
+
+### 3. Verify Credentials
+
+The workflow includes debug steps that will show if credentials are properly configured. You should see:
+
+```bash
+Environment: dev
+AWS_ACCESS_KEY_ID: ***
+AWS_SECRET_ACCESS_KEY: ***
+AWS_REGION: ***
+GOOGLE_CREDENTIALS: ***
+AZURE_CREDENTIALS: ***
+```
+
+If any shows "NOT SET", that secret needs to be configured.
+
+### 4. Environment Protection Rules (Optional)
+
+For each environment, you can configure:
+- Required reviewers
+- Wait timer
+- Branch restrictions
+- Deployment branch rules
+
 ## Repository Structure
 
 ```
 .
-├── environments/           # Environment-specific configurations
-│   ├── dev/               # Development environment
-│   ├── staging/           # Staging environment
-│   └── prod/              # Production environment
-├── modules/               # Reusable Terraform modules
-│   ├── gcp/              # GCP-specific modules
-│   ├── aws/              # AWS-specific modules
-│   └── azure/            # Azure-specific modules
-├── .github/              # GitHub Actions workflows
-├── .pre-commit-config.yaml # Pre-commit hooks configuration
-├── .tflint.hcl           # TFLint configuration
-├── .tfsec.yml            # TFSec configuration
-├── .gitignore           # Git ignore rules
-└── README.md            # This file
+├── environments/                    # Environment-specific configurations
+│   ├── dev/                        # Development environment
+│   │   ├── main.tf                # Main configuration
+│   │   ├── variables.tf           # Input variables
+│   │   ├── outputs.tf             # Output values
+│   │   └── versions.tf            # Provider versions
+│   ├── staging/                    # Staging environment
+│   │   ├── main.tf
+│   │   ├── variables.tf
+│   │   ├── outputs.tf
+│   │   └── versions.tf
+│   └── prod/                       # Production environment
+│       ├── main.tf
+│       ├── variables.tf
+│       ├── outputs.tf
+│       └── versions.tf
+├── modules/                        # Reusable Terraform modules
+│   ├── compute/                    # Compute resources
+│   │   ├── gcp/                   # GCP Compute Engine
+│   │   ├── aws/                   # AWS EC2
+│   │   └── azure/                 # Azure VM
+│   ├── storage/                    # Storage resources
+│   │   ├── gcp/                   # GCP Cloud Storage
+│   │   ├── aws/                   # AWS S3
+│   │   └── azure/                 # Azure Storage
+│   ├── database/                   # Database resources
+│   │   ├── gcp/                   # GCP Cloud SQL
+│   │   ├── aws/                   # AWS RDS
+│   │   └── azure/                 # Azure SQL
+│   └── networking/                 # Networking resources
+│       ├── gcp/                   # GCP VPC
+│       ├── aws/                   # AWS VPC
+│       └── azure/                 # Azure VNet
+├── .github/                       # GitHub Actions workflows
+│   └── workflows/
+│       └── terraform.yml         # Main Terraform workflow
+├── .pre-commit-config.yaml        # Pre-commit hooks configuration
+├── .tflint.hcl                    # TFLint configuration
+├── .tfsec.yml                     # TFSec configuration
+├── .gitignore                     # Git ignore rules
+└── README.md                      # Project documentation
 ```
+
+Each environment directory contains:
+- `main.tf`: Main Terraform configuration
+- `variables.tf`: Input variables definition
+- `outputs.tf`: Output values definition
+- `versions.tf`: Provider and Terraform version constraints
+
+Each module directory contains:
+- `main.tf`: Module resources
+- `variables.tf`: Module input variables
+- `outputs.tf`: Module outputs
+- `versions.tf`: Module version constraints
 
 ## Infrastructure Scanning
 

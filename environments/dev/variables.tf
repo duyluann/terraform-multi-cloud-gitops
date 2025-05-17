@@ -2,19 +2,19 @@
 variable "enable_gcp" {
   description = "Enable GCP provider"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "enable_aws" {
   description = "Enable AWS provider"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "enable_azure" {
   description = "Enable Azure provider"
   type        = bool
-  default     = false
+  default     = true
 }
 
 # GCP Variables
@@ -27,7 +27,7 @@ variable "gcp_project_id" {
 variable "gcp_region" {
   description = "The GCP region to deploy resources"
   type        = string
-  default     = "us-central1"
+  default     = "asia-southeast1"
 }
 
 # AWS Variables
@@ -40,7 +40,7 @@ variable "aws_account_id" {
 variable "aws_region" {
   description = "The AWS region to deploy resources"
   type        = string
-  default     = "us-east-1"
+  default     = "ap-southeast-1"
 }
 
 # Azure Variables
@@ -53,11 +53,17 @@ variable "azure_subscription_id" {
 variable "azure_region" {
   description = "The Azure region to deploy resources"
   type        = string
-  default     = "eastus"
+  default     = "southeastasia"
 }
 
 variable "azure_resource_group_name" {
   description = "The Azure resource group name"
+  type        = string
+  default     = null
+}
+
+variable "project_id" {
+  description = "The project ID. If not provided, a random string will be generated"
   type        = string
   default     = null
 }

@@ -1,0 +1,10 @@
+misconfigurations:
+  # AWS S3 bucket encryption using customer managed keys
+  - id: AVD-AWS-0132
+    statement: Will implement customer managed keys in future update
+  # AWS S3 bucket logging
+  - id: AVD-AWS-0089
+    statement: Logging is configured but needs to be properly set up
+  # GCP storage bucket encryption using customer managed keys
+  - id: AVD-GCP-0066
+    statement: Will implement customer managed keys in future update

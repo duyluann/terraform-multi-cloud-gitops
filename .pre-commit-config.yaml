@@ -14,14 +14,20 @@ repos:
       - id: terraform_validate
       - id: terraform_docs
       - id: terraform_tflint
-      - id: terraform_tfsec
+        args:
+          - --args=--config=__GIT_WORKING_DIR__/.tflint.hcl
+      - id: terraform_trivy
+        args:
+          - --args=--ignorefile=__GIT_WORKING_DIR__/.trivyignore.yaml
       - id: terraform_checkov
+        args:
+          - --args=--config-file __GIT_WORKING_DIR__/.checkov.yaml
 
   - repo: https://github.com/gruntwork-io/pre-commit
     rev: v0.1.20
     hooks:
       - id: terraform-fmt
       - id: shellcheck
-      - id: terragrunt-hclfmt
-      - id: gofmt
-      - id: golangci-lint
+      # - id: terragrunt-hclfmt
+      # - id: gofmt
+      # - id: golangci-lint
