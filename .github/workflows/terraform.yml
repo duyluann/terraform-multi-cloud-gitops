@@ -22,6 +22,14 @@ on:
           - dev
           - staging
           - prod
+      action:
+        description: 'Action to perform'
+        required: true
+        default: 'apply'
+        type: choice
+        options:
+          - apply
+          - destroy
 
 permissions:
   id-token: write
@@ -468,3 +476,67 @@ jobs:
           echo "## Production Environment Deployment" >> $GITHUB_STEP_SUMMARY
           echo "- Initialization: ${{ steps.init.outcome }}" >> $GITHUB_STEP_SUMMARY
           echo "- Apply: ${{ steps.apply.outcome }}" >> $GITHUB_STEP_SUMMARY
+
+  destroy:
+    name: Destroy Infrastructure
+    needs: validate
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Debug Environment Secrets
+        run: |
+          echo "Environment: ${{ github.event.inputs.environment }}"
+          echo "AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID != '' && '***' || 'NOT SET' }}"
+          echo "AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY != '' && '***' || 'NOT SET' }}"
+          echo "AWS_REGION: ${{ secrets.AWS_REGION != '' && '***' || 'NOT SET' }}"
+          echo "GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS != '' && '***' || 'NOT SET' }}"
+          echo "AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS != '' && '***' || 'NOT SET' }}"
+
+      # AWS Credentials
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'ap-southeast-1' }}
+
+      # GCP Credentials
+      - name: Google Auth
+        id: 'auth'
+        uses: 'google-github-actions/auth@v2'
+        with:
+          credentials_json: '${{ secrets.GOOGLE_CREDENTIALS }}'
+
+      # Azure Credentials
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ./environments/${{ github.event.inputs.environment }}
+
+      - name: Terraform Plan Destroy
+        run: terraform plan -destroy -out=tfplan
+        working-directory: ./environments/${{ github.event.inputs.environment }}
+
+      - name: Terraform Destroy
+        run: terraform apply tfplan
+        working-directory: ./environments/${{ github.event.inputs.environment }}
+
+      - name: Print Workflow Summary
+        run: |
+          echo "## ${{ github.event.inputs.environment }} Environment Destruction" >> $GITHUB_STEP_SUMMARY
+          echo "- Initialization: ${{ steps.init.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Plan: ${{ steps.plan.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Destroy: ${{ steps.destroy.outcome }}" >> $GITHUB_STEP_SUMMARY
