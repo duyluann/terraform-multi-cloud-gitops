@@ -104,7 +104,13 @@ jobs:
       - name: Terraform Plan
         id: plan
         run: |
-          terraform plan -no-color -out=tfplan
+          terraform plan -no-color -out=tfplan \
+            -var="project_id=${{ secrets.GCP_PROJECT }}" \
+            -var="aws_account_id=${{ secrets.AWS_ACCOUNT_ID }}" \
+            -var="aws_region=${{ secrets.AWS_REGION || 'ap-southeast-1' }}" \
+            -var="azure_subscription_id=${{ secrets.AZURE_SUBSCRIPTION_ID }}" \
+            -var="azure_region=${{ secrets.AZURE_REGION || 'southeastasia' }}" \
+            -var="azure_resource_group_name=${{ secrets.AZURE_RESOURCE_GROUP_NAME }}"
           terraform show -no-color tfplan > tfplan.txt
         working-directory: ${{ matrix.directory }}
         continue-on-error: true
