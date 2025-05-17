@@ -126,7 +126,7 @@ jobs:
           directory: ${{ matrix.directory }}
           output_format: cli,sarif
           output_file_path: console,results.sarif
-          config_file: .checkov.yaml
+          config_file: ${{ github.workspace }}/.checkov.yaml
         continue-on-error: true
 
       - name: Upload SARIF file
