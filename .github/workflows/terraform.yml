@@ -101,6 +101,21 @@ jobs:
         working-directory: ${{ matrix.directory }}
         continue-on-error: true
 
+      - name: Terraform Plan
+        id: plan
+        run: |
+          terraform plan -no-color -out=tfplan
+          terraform show -no-color tfplan > tfplan.txt
+        working-directory: ${{ matrix.directory }}
+        continue-on-error: true
+
+      - name: Upload Terraform Plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ matrix.environment }}
+          path: ${{ matrix.directory }}/tfplan.txt
+          retention-days: 7
+
       - name: Setup TFLint
         uses: terraform-linters/setup-tflint@v4
         with:
@@ -134,12 +149,6 @@ jobs:
       #   if: success() || failure()
       #   with:
       #     sarif_file: results.sarif
-
-      # - name: Terraform Plan
-      #   id: plan
-      #   run: terraform plan -no-color
-      #   working-directory: ${{ matrix.directory }}
-      #   continue-on-error: true
 
       # - name: Capture Command Outputs
       #   id: capture
