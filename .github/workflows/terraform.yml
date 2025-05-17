@@ -113,7 +113,7 @@ jobs:
         id: plan
         run: |
           terraform plan -no-color -out=tfplan \
-            -var="project_id=${{ env.GCP_PROJECT }}" \
+            -var="gcp_project_id=${{ env.GCP_PROJECT }}" \
             -var="aws_account_id=${{ env.AWS_ACCOUNT_ID }}" \
             -var="aws_region=${{ env.AWS_REGION || 'ap-southeast-1' }}" \
             -var="azure_subscription_id=${{ env.AZURE_SUBSCRIPTION_ID }}" \

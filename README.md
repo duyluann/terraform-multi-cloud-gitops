@@ -38,137 +38,15 @@ First, create environments in your GitHub repository:
    - `staging`
    - `prod`
 
-### 2. Configure AWS Credentials
+### 2. Configure Cloud Provider Credentials
 
-For each environment, add these AWS secrets:
+For each environment, add the required secrets following the official GitHub Actions documentation:
 
-```bash
-AWS_ACCESS_KEY_ID: [your-aws-access-key]
-AWS_SECRET_ACCESS_KEY: [your-aws-secret-key]
-AWS_REGION: [your-aws-region]
-```
+- **AWS**: Follow [aws-actions/configure-aws-credentials](https://github.com/aws-actions/configure-aws-credentials)
+- **GCP**: Follow [google-github-actions/auth](https://github.com/google-github-actions/auth)
+- **Azure**: Follow [azure/login](https://github.com/Azure/login)
 
-To create AWS credentials:
-1. Go to AWS IAM Console
-2. Create a new IAM user or use an existing one
-3. Attach necessary permissions (e.g., `AdministratorAccess` or custom policy)
-4. Create access keys
-5. Add the keys as secrets in GitHub
-
-### 3. Configure GCP Credentials
-
-For each environment, add this GCP secret:
-
-```bash
-GOOGLE_CREDENTIALS: [your-service-account-key-json]
-```
-
-To create GCP credentials:
-
-1. Install and initialize the Google Cloud CLI:
-   ```bash
-   # Install gcloud CLI (if not already installed)
-   # For macOS:
-   brew install google-cloud-sdk
-
-   # Initialize gcloud
-   gcloud init
-   ```
-
-2. Create a Service Account:
-   ```bash
-   # Replace ${PROJECT_ID} with your GCP project ID
-   gcloud iam service-accounts create "github-actions" \
-     --project "${PROJECT_ID}"
-   ```
-
-3. Create a Service Account Key:
-   ```bash
-   # Replace ${PROJECT_ID} with your GCP project ID
-   gcloud iam service-accounts keys create "key.json" \
-     --iam-account "github-actions@${PROJECT_ID}.iam.gserviceaccount.com"
-   ```
-
-4. Grant necessary roles to the service account:
-   ```bash
-   # Replace ${PROJECT_ID} with your GCP project ID
-   gcloud projects add-iam-policy-binding ${PROJECT_ID} \
-     --member="serviceAccount:github-actions@${PROJECT_ID}.iam.gserviceaccount.com" \
-     --role="roles/editor"
-   ```
-
-5. Add the key to GitHub:
-   - Open the generated `key.json` file
-   - Copy its entire contents
-   - Go to GitHub repository settings > Environments > [environment] > Add secret
-   - Name: `GOOGLE_CREDENTIALS`
-   - Value: Paste the entire JSON content
-
-### 4. Configure Azure Credentials
-
-For each environment, add this Azure secret:
-
-```bash
-AZURE_CREDENTIALS: [your-service-principal-credentials]
-```
-
-To create Azure credentials:
-
-1. **Register an Application in Microsoft Entra ID**:
-   1. Sign in to the [Microsoft Entra admin center](https://entra.microsoft.com)
-   2. Go to **Entra ID** > **App registrations**
-   3. Select **New registration**
-   4. Enter a name (e.g., "GitHubActions")
-   5. Under **Supported account types**, select "Accounts in this organizational directory only"
-   6. Click **Register**
-
-2. **Assign a Role to the Application**:
-   1. Go to **Azure portal** > **Subscriptions**
-   2. Select your subscription
-   3. Go to **Access control (IAM)**
-   4. Click **Add** > **Add role assignment**
-   5. Select the role (e.g., "Contributor")
-   6. Click **Next**
-   7. Under **Assign access to**, select "User, group, or service principal"
-   8. Click **Select members** and find your application
-   9. Click **Review + assign**
-
-3. **Create a Client Secret**:
-   1. Go back to your app registration
-   2. Select **Certificates & secrets**
-   3. Click **Client secrets** > **New client secret**
-   4. Add a description and select an expiration
-   5. Click **Add**
-   6. **IMPORTANT**: Copy the secret value immediately - it won't be shown again
-
-4. **Get Required Values**:
-   - Go to your app's overview page
-   - Copy these values:
-     - Application (client) ID
-     - Directory (tenant) ID
-     - The client secret you just created
-     - Your subscription ID
-
-5. **Create the Credentials JSON**:
-   ```json
-   {
-     "clientId": "your-application-client-id",
-     "clientSecret": "your-client-secret",
-     "subscriptionId": "your-subscription-id",
-     "tenantId": "your-tenant-id"
-   }
-   ```
-
-6. **Add to GitHub**:
-   - Go to GitHub repository settings > Environments > [environment] > Add secret
-   - Name: `AZURE_CREDENTIALS`
-   - Value: Paste the entire JSON object
-
-Note: The client secret is only shown once when created. Make sure to save it securely. If you lose it, you'll need to create a new one.
-
-For more detailed information, refer to the [official Microsoft documentation](https://learn.microsoft.com/en-us/entra/identity-platform/howto-create-service-principal-portal).
-
-### 5. Verify Credentials
+### 3. Verify Credentials
 
 The workflow includes debug steps that will show if credentials are properly configured. You should see:
 
@@ -183,7 +61,7 @@ AZURE_CREDENTIALS: ***
 
 If any shows "NOT SET", that secret needs to be configured.
 
-### 6. Environment Protection Rules (Optional)
+### 4. Environment Protection Rules (Optional)
 
 For each environment, you can configure:
 - Required reviewers
@@ -195,21 +73,60 @@ For each environment, you can configure:
 
 ```
 .
-├── environments/           # Environment-specific configurations
-│   ├── dev/               # Development environment
-│   ├── staging/           # Staging environment
-│   └── prod/              # Production environment
-├── modules/               # Reusable Terraform modules
-│   ├── gcp/              # GCP-specific modules
-│   ├── aws/              # AWS-specific modules
-│   └── azure/            # Azure-specific modules
-├── .github/              # GitHub Actions workflows
-├── .pre-commit-config.yaml # Pre-commit hooks configuration
-├── .tflint.hcl           # TFLint configuration
-├── .tfsec.yml            # TFSec configuration
-├── .gitignore           # Git ignore rules
-└── README.md            # This file
+├── environments/                    # Environment-specific configurations
+│   ├── dev/                        # Development environment
+│   │   ├── main.tf                # Main configuration
+│   │   ├── variables.tf           # Input variables
+│   │   ├── outputs.tf             # Output values
+│   │   └── versions.tf            # Provider versions
+│   ├── staging/                    # Staging environment
+│   │   ├── main.tf
+│   │   ├── variables.tf
+│   │   ├── outputs.tf
+│   │   └── versions.tf
+│   └── prod/                       # Production environment
+│       ├── main.tf
+│       ├── variables.tf
+│       ├── outputs.tf
+│       └── versions.tf
+├── modules/                        # Reusable Terraform modules
+│   ├── compute/                    # Compute resources
+│   │   ├── gcp/                   # GCP Compute Engine
+│   │   ├── aws/                   # AWS EC2
+│   │   └── azure/                 # Azure VM
+│   ├── storage/                    # Storage resources
+│   │   ├── gcp/                   # GCP Cloud Storage
+│   │   ├── aws/                   # AWS S3
+│   │   └── azure/                 # Azure Storage
+│   ├── database/                   # Database resources
+│   │   ├── gcp/                   # GCP Cloud SQL
+│   │   ├── aws/                   # AWS RDS
+│   │   └── azure/                 # Azure SQL
+│   └── networking/                 # Networking resources
+│       ├── gcp/                   # GCP VPC
+│       ├── aws/                   # AWS VPC
+│       └── azure/                 # Azure VNet
+├── .github/                       # GitHub Actions workflows
+│   └── workflows/
+│       └── terraform.yml         # Main Terraform workflow
+├── .pre-commit-config.yaml        # Pre-commit hooks configuration
+├── .tflint.hcl                    # TFLint configuration
+├── .tfsec.yml                     # TFSec configuration
+├── .gitignore                     # Git ignore rules
+└── README.md                      # Project documentation
 ```
+
+Each environment directory contains:
+- `main.tf`: Main Terraform configuration
+- `variables.tf`: Input variables definition
+- `outputs.tf`: Output values definition
+- `versions.tf`: Provider and Terraform version constraints
+
+Each module directory contains:
+- `main.tf`: Module resources
+- `variables.tf`: Module input variables
+- `outputs.tf`: Module outputs
+- `versions.tf`: Module version constraints
 
 ## Infrastructure Scanning
 
