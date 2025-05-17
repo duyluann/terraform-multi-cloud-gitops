@@ -1,0 +1,155 @@
+name: 'Terraform'
+
+on:
+  push:
+    branches:
+      - main
+      - staging
+      - dev
+  pull_request:
+    branches:
+      - main
+      - staging
+      - dev
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  terraform:
+    name: 'Terraform'
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_name }}
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v2
+      with:
+        terraform_version: 1.0.0
+
+    - name: Setup tflint
+      uses: terraform-linters/setup-tflint@v3
+      with:
+        tflint_version: v0.45.0
+
+    - name: Setup tfsec
+      uses: aquasecurity/tfsec-action@v1.0.0
+      with:
+        soft_fail: true
+
+    - name: Setup Checkov
+      uses: bridgecrewio/checkov-action@master
+      with:
+        directory: environments/${{ github.ref_name }}
+        soft_fail: true
+
+    - name: Terraform Format
+      id: fmt
+      run: terraform fmt -check
+      continue-on-error: true
+
+    - name: Terraform Init
+      id: init
+      run: terraform init
+      working-directory: ./environments/${{ github.ref_name }}
+
+    - name: Terraform Validate
+      id: validate
+      run: terraform validate
+      working-directory: ./environments/${{ github.ref_name }}
+
+    - name: Run tflint
+      id: tflint
+      run: tflint --init && tflint
+      working-directory: ./environments/${{ github.ref_name }}
+      continue-on-error: true
+
+    - name: Run tfsec
+      id: tfsec
+      run: tfsec .
+      working-directory: ./environments/${{ github.ref_name }}
+      continue-on-error: true
+
+    - name: Run Checkov
+      id: checkov
+      run: checkov -d .
+      working-directory: ./environments/${{ github.ref_name }}
+      continue-on-error: true
+
+    - name: Terraform Plan
+      id: plan
+      if: github.event_name == 'pull_request'
+      run: terraform plan -no-color
+      working-directory: ./environments/${{ github.ref_name }}
+      continue-on-error: true
+
+    - name: Update Pull Request
+      uses: actions/github-script@v6
+      if: github.event_name == 'pull_request'
+      env:
+        PLAN: "terraform\n${{ steps.plan.outputs.stdout }}"
+        TFLINT: "tflint\n${{ steps.tflint.outputs.stdout }}"
+        TFSEC: "tfsec\n${{ steps.tfsec.outputs.stdout }}"
+        CHECKOV: "checkov\n${{ steps.checkov.outputs.stdout }}"
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
+          #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
+          #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
+          #### Terraform Lint 🔍\`${{ steps.tflint.outcome }}\`
+          #### Terraform Security Scan 🔒\`${{ steps.tfsec.outcome }}\`
+          #### Terraform Compliance Check ✅\`${{ steps.checkov.outcome }}\`
+          #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
+
+          <details><summary>Show Plan</summary>
+
+          \`\`\`\n
+          ${process.env.PLAN}
+          \`\`\`
+
+          </details>
+
+          <details><summary>Show Lint Results</summary>
+
+          \`\`\`\n
+          ${process.env.TFLINT}
+          \`\`\`
+
+          </details>
+
+          <details><summary>Show Security Scan Results</summary>
+
+          \`\`\`\n
+          ${process.env.TFSEC}
+          \`\`\`
+
+          </details>
+
+          <details><summary>Show Compliance Check Results</summary>
+
+          \`\`\`\n
+          ${process.env.CHECKOV}
+          \`\`\`
+
+          </details>`;
+
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.name,
+            body: output
+          })
+
+    - name: Terraform Apply
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      run: terraform apply -auto-approve
+      working-directory: ./environments/${{ github.ref_name }}

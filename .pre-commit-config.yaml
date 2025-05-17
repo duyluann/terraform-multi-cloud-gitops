@@ -1,0 +1,27 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.86.0
+    hooks:
+      - id: terraform_fmt
+      - id: terraform_validate
+      - id: terraform_docs
+      - id: terraform_tflint
+      - id: terraform_tfsec
+      - id: terraform_checkov
+
+  - repo: https://github.com/gruntwork-io/pre-commit
+    rev: v0.1.20
+    hooks:
+      - id: terraform-fmt
+      - id: shellcheck
+      - id: terragrunt-hclfmt
+      - id: gofmt
+      - id: golangci-lint

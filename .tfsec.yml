@@ -1,0 +1,45 @@
+---
+# Minimum version of tfsec to use
+minimum_version: 1.28.1
+
+# Enable all available checks
+enable_all_checks: true
+
+# Exclude specific checks
+exclude:
+  - AWS018  # Ensure security group rule descriptions
+  - AWS017  # Ensure all data stored in the S3 bucket is securely encrypted at rest
+
+# Custom checks severity overrides
+severity_overrides:
+  AWS017: HIGH
+  AWS018: LOW
+
+# Workspace settings
+workspace_settings:
+  - workspace: dev
+    custom_checks:
+      - code: CUSTOM001
+        description: "Custom check for dev environment"
+        severity: HIGH
+        required_labels:
+          - Environment
+          - ManagedBy
+
+  - workspace: staging
+    custom_checks:
+      - code: CUSTOM002
+        description: "Custom check for staging environment"
+        severity: HIGH
+        required_labels:
+          - Environment
+          - ManagedBy
+
+  - workspace: prod
+    custom_checks:
+      - code: CUSTOM003
+        description: "Custom check for production environment"
+        severity: CRITICAL
+        required_labels:
+          - Environment
+          - ManagedBy
