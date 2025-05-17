@@ -1,26 +1,28 @@
 variable "project_id" {
-  description = "The AWS account ID"
+  description = "The project ID. If not provided, a random string will be generated"
   type        = string
+  default     = null
 }
 
 variable "environment" {
-  description = "The environment name (e.g., dev, staging, prod)"
+  description = "The environment (dev, staging, prod)"
   type        = string
 }
 
 variable "region" {
-  description = "The AWS region to deploy resources"
+  description = "The AWS region"
   type        = string
+  default     = "ap-southeast-1"
 }
 
 variable "force_destroy" {
-  description = "Whether to force destroy the bucket when deleting"
+  description = "Whether to force destroy the bucket even if it's not empty"
   type        = bool
   default     = false
 }
 
 variable "tags" {
-  description = "Additional tags to apply to the bucket"
+  description = "Additional tags for the resources"
   type        = map(string)
   default     = {}
 }

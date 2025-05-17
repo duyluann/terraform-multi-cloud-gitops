@@ -61,3 +61,9 @@ variable "azure_resource_group_name" {
   type        = string
   default     = null
 }
+
+variable "project_id" {
+  description = "The project ID. If not provided, a random string will be generated"
+  type        = string
+  default     = null
+}

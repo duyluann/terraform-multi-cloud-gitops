@@ -121,12 +121,9 @@ jobs:
         id: plan
         run: |
           terraform plan -no-color -out=tfplan \
-            -var="gcp_project_id=${{ env.GCP_PROJECT }}" \
-            -var="aws_account_id=${{ env.AWS_ACCOUNT_ID }}" \
-            -var="aws_region=${{ env.AWS_REGION || 'ap-southeast-1' }}" \
-            -var="azure_subscription_id=${{ env.AZURE_SUBSCRIPTION_ID }}" \
-            -var="azure_region=${{ env.AZURE_REGION || 'southeastasia' }}" \
-            -var="azure_resource_group_name=${{ env.AZURE_RESOURCE_GROUP_NAME }}"
+            -var="aws_region=${{ secrets.AWS_REGION || 'ap-southeast-1' }}" \
+            -var="azure_region=${{ secrets.AZURE_REGION || 'southeastasia' }}" \
+            -var="azure_resource_group_name=${{ secrets.AZURE_RESOURCE_GROUP_NAME }}"
           terraform show -no-color tfplan > tfplan.txt
         working-directory: ${{ matrix.directory }}
 
@@ -350,7 +347,11 @@ jobs:
         working-directory: ./environments/dev
 
       - name: Terraform Apply
-        run: terraform apply -auto-approve
+        run: |
+          terraform apply -auto-approve \
+            -var="aws_region=${{ secrets.AWS_REGION || 'ap-southeast-1' }}" \
+            -var="azure_region=${{ secrets.AZURE_REGION || 'southeastasia' }}" \
+            -var="azure_resource_group_name=${{ secrets.AZURE_RESOURCE_GROUP_NAME }}"
         working-directory: ./environments/dev
 
       - name: Print Workflow Summary
@@ -409,7 +410,11 @@ jobs:
         working-directory: ./environments/staging
 
       - name: Terraform Apply
-        run: terraform apply -auto-approve
+        run: |
+          terraform apply -auto-approve \
+            -var="aws_region=${{ secrets.AWS_REGION || 'ap-southeast-1' }}" \
+            -var="azure_region=${{ secrets.AZURE_REGION || 'southeastasia' }}" \
+            -var="azure_resource_group_name=${{ secrets.AZURE_RESOURCE_GROUP_NAME }}"
         working-directory: ./environments/staging
 
       - name: Print Workflow Summary
@@ -468,7 +473,11 @@ jobs:
         working-directory: ./environments/prod
 
       - name: Terraform Apply
-        run: terraform apply -auto-approve
+        run: |
+          terraform apply -auto-approve \
+            -var="aws_region=${{ secrets.AWS_REGION || 'ap-southeast-1' }}" \
+            -var="azure_region=${{ secrets.AZURE_REGION || 'southeastasia' }}" \
+            -var="azure_resource_group_name=${{ secrets.AZURE_RESOURCE_GROUP_NAME }}"
         working-directory: ./environments/prod
 
       - name: Print Workflow Summary
@@ -527,11 +536,19 @@ jobs:
         working-directory: ./environments/${{ github.event.inputs.environment }}
 
       - name: Terraform Plan Destroy
-        run: terraform plan -destroy -out=tfplan
+        run: |
+          terraform plan -destroy -out=tfplan \
+            -var="aws_region=${{ secrets.AWS_REGION || 'ap-southeast-1' }}" \
+            -var="azure_region=${{ secrets.AZURE_REGION || 'southeastasia' }}" \
+            -var="azure_resource_group_name=${{ secrets.AZURE_RESOURCE_GROUP_NAME }}"
         working-directory: ./environments/${{ github.event.inputs.environment }}
 
       - name: Terraform Destroy
-        run: terraform apply tfplan
+        run: |
+          terraform apply tfplan \
+            -var="aws_region=${{ secrets.AWS_REGION || 'ap-southeast-1' }}" \
+            -var="azure_region=${{ secrets.AZURE_REGION || 'southeastasia' }}" \
+            -var="azure_resource_group_name=${{ secrets.AZURE_RESOURCE_GROUP_NAME }}"
         working-directory: ./environments/${{ github.event.inputs.environment }}
 
       - name: Print Workflow Summary

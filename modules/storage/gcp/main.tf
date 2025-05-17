@@ -19,9 +19,18 @@ resource "google_storage_bucket" "bucket" {
   # Prevent public access
   public_access_prevention = "enforced"
 
+  lifecycle_rule {
+    condition {
+      age = 30
+    }
+    action {
+      type = "Delete"
+    }
+  }
+
   labels = merge(var.tags, {
-    Environment = var.environment
-    ManagedBy   = "terraform"
+    environment = var.environment
+    managed_by  = "terraform"
   })
 }
 
@@ -34,9 +43,22 @@ resource "google_storage_bucket" "logs" {
   uniform_bucket_level_access = true
   public_access_prevention    = "enforced"
 
+  versioning {
+    enabled = true
+  }
+
+  lifecycle_rule {
+    condition {
+      age = 30
+    }
+    action {
+      type = "Delete"
+    }
+  }
+
   labels = merge(var.tags, {
-    Environment = var.environment
-    ManagedBy   = "terraform"
-    Purpose     = "logs"
+    environment = var.environment
+    managed_by  = "terraform"
+    purpose     = "logs"
   })
 }
